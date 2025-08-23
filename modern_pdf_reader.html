@@ -173,6 +173,68 @@
             box-shadow: 0 0 20px rgba(16, 185, 129, 0.5);
         }
 
+        .page-jump-container {
+            background: #f0f9ff;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+
+        .page-jump-label {
+            display: block;
+            font-size: 0.9rem;
+            color: #0ea5e9;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        .page-jump-input-group {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        #page-jump-input {
+            flex: 1;
+            padding: 10px;
+            border: 2px solid #e0f2fe;
+            border-radius: 6px;
+            font-size: 1rem;
+            text-align: center;
+            font-weight: 600;
+            color: #0ea5e9;
+            background: white;
+            transition: all 0.3s ease;
+        }
+
+        #page-jump-input:focus {
+            border-color: #0ea5e9;
+            outline: 2px solid #0ea5e9;
+            outline-offset: 2px;
+            box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1);
+        }
+
+        #page-jump-input:disabled {
+            background: #f1f5f9;
+            color: #94a3b8;
+            cursor: not-allowed;
+        }
+
+        .page-jump-btn {
+            padding: 10px 16px !important;
+            font-size: 0.9rem !important;
+            min-width: 50px;
+            background: #0ea5e9 !important;
+        }
+
+        .page-jump-btn:hover:not(:disabled) {
+            background: #0284c7 !important;
+        }
+
+        .page-jump-btn:disabled {
+            background: #cbd5e1 !important;
+        }
+
         .voice-indicator {
             padding: 15px;
             border-radius: 8px;
@@ -762,6 +824,29 @@
                     <button class="btn" id="next-btn" onclick="nextPage()" disabled aria-label="Go to next page">
                         Next Page
                     </button>
+                    
+                    <div class="page-jump-container">
+                        <label for="page-jump-input" class="page-jump-label">Go to page:</label>
+                        <div class="page-jump-input-group">
+                            <input type="number" 
+                                   id="page-jump-input" 
+                                   min="1" 
+                                   max="1" 
+                                   placeholder="1"
+                                   disabled
+                                   aria-label="Enter page number to jump to"
+                                   onkeydown="handlePageJumpKeydown(event)"
+                                   oninput="validatePageInput()">
+                            <button class="btn page-jump-btn" 
+                                    id="page-jump-btn" 
+                                    onclick="jumpToPage()" 
+                                    disabled 
+                                    aria-label="Jump to entered page number">
+                                Go
+                            </button>
+                        </div>
+                    </div>
+                    
                     <button class="btn danger" id="stop-btn" onclick="stopReading()" disabled aria-label="Stop reading">
                         Stop Reading
                     </button>
@@ -791,6 +876,7 @@
                         <li>• "Faster" - Increase reading speed</li>
                         <li>• "Slower" - Decrease reading speed</li>
                         <li>• "Reprocess" - Rerun OCR and start reading</li>
+                        <li>• "Go to page [number]" - Jump to specific page</li>
                     </ul>
                 </div>
 
@@ -823,6 +909,10 @@
                     <div class="shortcut">
                         <span>Reprocess OCR</span>
                         <span class="key">O</span>
+                    </div>
+                    <div class="shortcut">
+                        <span>Page Jump Focus</span>
+                        <span class="key">J</span>
                     </div>
                 </div>
 
@@ -877,6 +967,7 @@
                         <p>2. The reader will automatically extract and read the text</p>
                         <p>3. Use voice commands or keyboard shortcuts to navigate</p>
                         <p>4. Bookmark important pages for easy access</p>
+                        <p>5. Use the "Go to page" feature to jump to any page number</p>
                         <p><strong>NEW:</strong> Navigation commands (next/back) now automatically start reading!</p>
                     </div>
                 </div>
@@ -1118,6 +1209,12 @@
                 await loadCurrentPage();
                 enableControls();
                 
+                // Update page jump input
+                const pageInput = document.getElementById('page-jump-input');
+                pageInput.max = totalPages;
+                pageInput.disabled = false;
+                document.getElementById('page-jump-btn').disabled = false;
+                
                 announceToScreenReader(`PDF loaded successfully. ${totalPages} pages total.`);
                 
             } catch (error) {
@@ -1306,6 +1403,9 @@
             document.getElementById('prev-btn').disabled = currentPage <= 1;
             document.getElementById('next-btn').disabled = currentPage >= totalPages;
             
+            // Update page jump input value
+            document.getElementById('page-jump-input').value = currentPage;
+            
             // Prepare sentences for reading with improved splitting
             sentences = splitIntoSentences(pageText);
             currentSentenceIndex = 0;
@@ -1345,6 +1445,50 @@
             }
             
             return sentences;
+        }
+
+        // Page jumping functionality
+        function jumpToPage() {
+            const pageInput = document.getElementById('page-jump-input');
+            const targetPage = parseInt(pageInput.value);
+            
+            if (isNaN(targetPage) || targetPage < 1 || targetPage > totalPages) {
+                showError(`Please enter a valid page number between 1 and ${totalPages}`);
+                pageInput.value = currentPage;
+                return;
+            }
+            
+            if (targetPage === currentPage) {
+                announceToScreenReader('Already on the requested page');
+                return;
+            }
+            
+            stopReading();
+            currentPage = targetPage;
+            loadCurrentPage().then(() => {
+                announceToScreenReader(`Jumped to page ${currentPage} of ${totalPages}`);
+            });
+        }
+
+        function validatePageInput() {
+            const pageInput = document.getElementById('page-jump-input');
+            const pageBtn = document.getElementById('page-jump-btn');
+            const value = parseInt(pageInput.value);
+            
+            if (isNaN(value) || value < 1 || value > totalPages) {
+                pageBtn.disabled = true;
+                pageInput.style.borderColor = '#ef4444';
+            } else {
+                pageBtn.disabled = false;
+                pageInput.style.borderColor = '#0ea5e9';
+            }
+        }
+
+        function handlePageJumpKeydown(event) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                jumpToPage();
+            }
         }
 
         // Navigation functions with auto-start capability
@@ -1550,7 +1694,20 @@
                 let commandExecuted = false;
                 let shouldAutoStart = false;
                 
-                if (normalizedCommand.includes('next') || normalizedCommand.includes('forward') || normalizedCommand.includes('page')) {
+                // Check for page jump commands
+                const pageMatch = normalizedCommand.match(/(?:go to|goto|jump to|page)\s*(\d+)/);
+                if (pageMatch) {
+                    const pageNumber = parseInt(pageMatch[1]);
+                    if (pageNumber >= 1 && pageNumber <= totalPages) {
+                        document.getElementById('page-jump-input').value = pageNumber;
+                        jumpToPage();
+                        shouldAutoStart = true;
+                        commandExecuted = true;
+                    } else {
+                        announceToScreenReader(`Invalid page number. Please say a number between 1 and ${totalPages}`);
+                        commandExecuted = true;
+                    }
+                } else if (normalizedCommand.includes('next') || normalizedCommand.includes('forward') || normalizedCommand.includes('page')) {
                     nextPage();
                     shouldAutoStart = true;
                     commandExecuted = true;
@@ -1593,7 +1750,7 @@
                 
                 if (!commandExecuted) {
                     console.log('Command not recognized:', normalizedCommand);
-                    announceToScreenReader('Command not recognized. Try saying next, previous, start, stop, or repeat.');
+                    announceToScreenReader('Command not recognized. Try saying next, previous, start, stop, repeat, bookmark, or go to page number.');
                 }
                 
                 updateVoiceStatus('listening', 'Listening for voice commands...');
@@ -1629,7 +1786,7 @@
                 voiceRecognition.start();
                 document.getElementById('voice-btn').textContent = 'Stop Voice Commands';
                 document.getElementById('voice-btn').classList.add('active');
-                announceToScreenReader('Voice commands activated. Say commands like next, previous, start, or stop.');
+                announceToScreenReader('Voice commands activated. Say commands like next, previous, start, stop, or go to page number.');
             } catch (error) {
                 console.error('Error starting voice recognition:', error);
                 isListening = false;
@@ -1754,6 +1911,7 @@
             if (page !== currentPage) {
                 stopReading();
                 currentPage = page;
+                document.getElementById('page-jump-input').value = page;
                 await loadCurrentPage();
                 announceToScreenReader(`Jumped to bookmarked page ${page}`);
             }
@@ -1904,6 +2062,10 @@
                         reprocessCurrentPage().then(() => {
                             setTimeout(() => startReading(), 1500);
                         });
+                        break;
+                    case 'j':
+                        event.preventDefault();
+                        document.getElementById('page-jump-input').focus();
                         break;
                     case 't':
                         event.preventDefault();
