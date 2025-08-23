@@ -1,0 +1,2116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enhanced Accessible PDF Reader with OCR</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #1e40af, #3b82f6);
+            color: #333;
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 30px;
+            border-radius: 15px;
+            text-align: center;
+            margin-bottom: 30px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+
+        .header h1 {
+            color: #1e40af;
+            font-size: 2.5rem;
+            margin-bottom: 15px;
+        }
+
+        .header p {
+            color: #6b7280;
+            font-size: 1.1rem;
+            margin-bottom: 20px;
+        }
+
+        .upload-area {
+            border: 3px dashed #3b82f6;
+            border-radius: 15px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: rgba(59, 130, 246, 0.05);
+            margin-bottom: 20px;
+        }
+
+        .upload-area:hover, .upload-area:focus {
+            border-color: #1e40af;
+            background: rgba(59, 130, 246, 0.1);
+            transform: translateY(-2px);
+            outline: 3px solid #3b82f6;
+            outline-offset: 2px;
+        }
+
+        .upload-area.dragover {
+            border-color: #10b981;
+            background: rgba(16, 185, 129, 0.1);
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .upload-text {
+            font-size: 1.2rem;
+            color: #374151;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+
+        .upload-hint {
+            color: #6b7280;
+            font-size: 0.9rem;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 320px 1fr;
+            gap: 30px;
+            margin-top: 30px;
+        }
+
+        .sidebar {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            height: fit-content;
+        }
+
+        .sidebar h2 {
+            color: #1e40af;
+            margin-bottom: 20px;
+            font-size: 1.3rem;
+        }
+
+        .controls {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        .btn {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            background: #3b82f6;
+            color: white;
+            position: relative;
+        }
+
+        .btn:hover:not(:disabled) {
+            background: #1e40af;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+        }
+
+        .btn:focus {
+            outline: 3px solid #fbbf24;
+            outline-offset: 2px;
+        }
+
+        .btn:disabled {
+            background: #d1d5db;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn.danger {
+            background: #ef4444;
+        }
+
+        .btn.danger:hover:not(:disabled) {
+            background: #dc2626;
+        }
+
+        .btn.success {
+            background: #10b981;
+        }
+
+        .btn.success:hover:not(:disabled) {
+            background: #059669;
+        }
+
+        .btn.warning {
+            background: #f59e0b;
+        }
+
+        .btn.warning:hover:not(:disabled) {
+            background: #d97706;
+        }
+
+        .btn.active {
+            background: #10b981;
+            box-shadow: 0 0 20px rgba(16, 185, 129, 0.5);
+        }
+
+        .voice-indicator {
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            font-weight: 600;
+            margin-bottom: 15px;
+            font-size: 1rem;
+            min-height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .voice-indicator.listening {
+            background: rgba(16, 185, 129, 0.2);
+            color: #065f46;
+            border: 2px solid #10b981;
+            animation: pulse 2s infinite;
+        }
+
+        .voice-indicator.speaking {
+            background: rgba(59, 130, 246, 0.2);
+            color: #1e40af;
+            border: 2px solid #3b82f6;
+            animation: speaking-wave 1.5s infinite;
+        }
+
+        .voice-indicator.processing {
+            background: rgba(245, 158, 11, 0.2);
+            color: #92400e;
+            border: 2px solid #f59e0b;
+            animation: processing-spin 2s infinite;
+        }
+
+        .voice-indicator.idle {
+            background: rgba(156, 163, 175, 0.2);
+            color: #4b5563;
+            border: 2px solid #9ca3af;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.8; transform: scale(1.05); }
+        }
+
+        @keyframes speaking-wave {
+            0%, 100% { transform: scaleY(1); }
+            50% { transform: scaleY(1.1); }
+        }
+
+        @keyframes processing-spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .voice-settings {
+            background: #f8fafc;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .voice-settings h3 {
+            color: #1e40af;
+            margin-bottom: 10px;
+            font-size: 1rem;
+        }
+
+        .setting-group {
+            margin-bottom: 15px;
+        }
+
+        .setting-group label {
+            display: block;
+            font-size: 0.9rem;
+            color: #374151;
+            margin-bottom: 5px;
+            font-weight: 600;
+        }
+
+        .setting-group select,
+        .setting-group input[type="range"] {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 0.9rem;
+        }
+
+        .setting-group select:focus,
+        .setting-group input[type="range"]:focus {
+            outline: 2px solid #3b82f6;
+            outline-offset: 2px;
+        }
+
+        .range-value {
+            display: inline-block;
+            margin-left: 10px;
+            font-weight: 600;
+            color: #1e40af;
+            min-width: 40px;
+        }
+
+        .test-voice-btn {
+            width: 100%;
+            padding: 8px 16px;
+            background: #f59e0b;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 600;
+            margin-top: 10px;
+            transition: background 0.3s ease;
+        }
+
+        .test-voice-btn:hover {
+            background: #d97706;
+        }
+
+        .test-voice-btn:focus {
+            outline: 2px solid #fbbf24;
+            outline-offset: 2px;
+        }
+
+        .ocr-settings {
+            background: #f0f9ff;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .ocr-settings h3 {
+            color: #0ea5e9;
+            margin-bottom: 10px;
+            font-size: 1rem;
+        }
+
+        .ocr-progress {
+            width: 100%;
+            height: 25px;
+            background: #e5e7eb;
+            border-radius: 12px;
+            overflow: hidden;
+            margin-top: 10px;
+            position: relative;
+        }
+
+        .ocr-progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #0ea5e9, #06b6d4);
+            width: 0%;
+            transition: width 0.8s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 0.8rem;
+            font-weight: 600;
+            border-radius: 12px;
+        }
+
+        .bookmarks {
+            margin-top: 20px;
+        }
+
+        .bookmarks h3 {
+            color: #1e40af;
+            margin-bottom: 15px;
+            font-size: 1.1rem;
+        }
+
+        .bookmark-item {
+            background: #f8fafc;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            border-left: 4px solid #3b82f6;
+            transition: all 0.3s ease;
+            outline: none;
+        }
+
+        .bookmark-item:hover, .bookmark-item:focus {
+            background: #e2e8f0;
+            transform: translateX(5px);
+            outline: 2px solid #3b82f6;
+            outline-offset: 2px;
+        }
+
+        .bookmark-page {
+            font-weight: 600;
+            color: #1e40af;
+            margin-bottom: 5px;
+        }
+
+        .bookmark-text {
+            font-size: 0.9rem;
+            color: #6b7280;
+        }
+
+        .content-area {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 40px;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            min-height: 600px;
+        }
+
+        .page-info {
+            border-bottom: 2px solid #e5e7eb;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+
+        .page-title {
+            font-size: 2rem;
+            color: #1e40af;
+            margin-bottom: 10px;
+        }
+
+        .page-number {
+            color: #6b7280;
+            font-size: 1.2rem;
+            font-weight: 600;
+        }
+
+        .page-content {
+            font-size: 1.3rem;
+            line-height: 1.9;
+            color: #374151;
+            font-weight: 500;
+        }
+
+        .highlight-current {
+            background: linear-gradient(120deg, #fef3c7 0%, #fcd34d 100%);
+            color: #92400e;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-weight: 600;
+            box-shadow: 0 2px 8px rgba(252, 211, 77, 0.6);
+            transition: all 0.3s ease;
+            animation: pulse-highlight 2s ease-in-out infinite;
+            border: 2px solid #f59e0b;
+        }
+
+        @keyframes pulse-highlight {
+            0%, 100% { 
+                box-shadow: 0 2px 8px rgba(252, 211, 77, 0.6);
+                transform: scale(1);
+            }
+            50% { 
+                box-shadow: 0 4px 16px rgba(252, 211, 77, 0.9);
+                transform: scale(1.02);
+            }
+        }
+
+        .highlight-spoken {
+            background: rgba(34, 197, 94, 0.2);
+            color: #15803d;
+            border-left: 4px solid #22c55e;
+            padding: 4px 8px 4px 12px;
+            margin: 2px 0;
+            border-radius: 0 6px 6px 0;
+            transition: all 0.5s ease;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 80px;
+            color: #6b7280;
+        }
+
+        .loading-spinner {
+            width: 60px;
+            height: 60px;
+            border: 5px solid #e5e7eb;
+            border-top: 5px solid #3b82f6;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 30px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            font-size: 1.2rem;
+            font-weight: 600;
+        }
+
+        .keyboard-shortcuts {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f1f5f9;
+            border-radius: 8px;
+        }
+
+        .keyboard-shortcuts h3 {
+            color: #1e40af;
+            margin-bottom: 15px;
+            font-size: 1rem;
+        }
+
+        .shortcut {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+            align-items: center;
+        }
+
+        .key {
+            background: #374151;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-weight: 600;
+            font-size: 0.8rem;
+        }
+
+        .welcome-message {
+            text-align: center;
+            color: #6b7280;
+            font-size: 1.2rem;
+            padding: 80px 20px;
+            line-height: 1.8;
+        }
+
+        .welcome-message h2 {
+            color: #1e40af;
+            margin-bottom: 20px;
+            font-size: 2rem;
+        }
+
+        .voice-commands-help {
+            background: #e0f2fe;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+            font-size: 0.9rem;
+        }
+
+        .voice-commands-help h4 {
+            color: #0277bd;
+            margin-bottom: 12px;
+            font-weight: 600;
+        }
+
+        .voice-commands-help ul {
+            list-style: none;
+            padding: 0;
+        }
+
+        .voice-commands-help li {
+            margin-bottom: 6px;
+            color: #01579b;
+            padding-left: 8px;
+        }
+
+        .extracted-preview {
+            background: #fffbeb;
+            border: 2px solid #fed7aa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 25px;
+            max-height: 250px;
+            overflow-y: auto;
+            font-size: 1rem;
+            line-height: 1.6;
+        }
+
+        .extracted-preview h4 {
+            color: #92400e;
+            margin-bottom: 15px;
+            font-weight: 600;
+        }
+
+        .page-canvas {
+            max-width: 100%;
+            border: 2px solid #e5e7eb;
+            border-radius: 10px;
+            margin: 25px 0;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .error-message {
+            background: #fee2e2;
+            color: #dc2626;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            border: 2px solid #fca5a5;
+            font-weight: 600;
+        }
+
+        .success-message {
+            background: #dcfce7;
+            color: #166534;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            border: 2px solid #86efac;
+            font-weight: 600;
+        }
+
+        .debug-info {
+            background: #f3f4f6;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            font-family: monospace;
+            font-size: 0.8rem;
+            color: #374151;
+            border-left: 4px solid #6b7280;
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .content-area {
+                padding: 25px;
+            }
+
+            .page-content {
+                font-size: 1.2rem;
+            }
+        }
+
+        /* High contrast mode for better accessibility */
+        @media (prefers-contrast: high) {
+            .highlight-current {
+                background: #ffff00;
+                color: #000000;
+                border: 3px solid #000000;
+            }
+            
+            .highlight-spoken {
+                background: #ccffcc;
+                color: #000000;
+                border-left: 6px solid #008800;
+            }
+        }
+
+        /* Screen reader only content */
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
+
+        /* Focus indicators for keyboard navigation */
+        *:focus {
+            outline: 3px solid #fbbf24;
+            outline-offset: 2px;
+        }
+
+        /* Reduce motion for users who prefer it */
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>Accessible PDF Reader</h1>
+            <p>Voice-controlled PDF reader with OCR support for all types of documents including scanned images</p>
+            
+            <div class="upload-area" 
+                 tabindex="0"
+                 role="button"
+                 aria-label="Click to upload PDF file or drag and drop"
+                 onclick="document.getElementById('pdf-file').click()" 
+                 onkeydown="if(event.key==='Enter'||event.key===' ') document.getElementById('pdf-file').click()"
+                 ondrop="handleDrop(event)" 
+                 ondragover="handleDragOver(event)" 
+                 ondragleave="handleDragLeave(event)">
+                <input type="file" 
+                       id="pdf-file" 
+                       class="file-input" 
+                       accept=".pdf" 
+                       onchange="handleFileSelect(event)"
+                       aria-label="Select PDF file">
+                <div class="upload-text">Click here or drag & drop a PDF file</div>
+                <div class="upload-hint">Supports both text-based and scanned/image PDFs with automatic text extraction</div>
+            </div>
+        </header>
+
+        <main class="main-content" style="display: none;" id="main-content">
+            <aside class="sidebar">
+                <h2>Voice Controls</h2>
+                
+                <div class="voice-indicator idle" id="voice-status" role="status" aria-live="polite">
+                    Click "Start Voice Commands" to begin
+                </div>
+
+                <div class="voice-settings">
+                    <h3>Voice Settings</h3>
+                    
+                    <div class="setting-group">
+                        <label for="voice-select">Voice:</label>
+                        <select id="voice-select" onchange="updateVoiceSettings()" aria-label="Select voice for reading">
+                            <option value="">Loading voices...</option>
+                        </select>
+                    </div>
+                    
+                    <div class="setting-group">
+                        <label for="speed-range">Speed: <span class="range-value" id="speed-value">0.8x</span></label>
+                        <input type="range" 
+                               id="speed-range" 
+                               min="0.3" 
+                               max="2.0" 
+                               step="0.1" 
+                               value="0.8" 
+                               aria-label="Adjust reading speed"
+                               oninput="updateSpeedValue()" 
+                               onchange="updateVoiceSettings()">
+                    </div>
+                    
+                    <div class="setting-group">
+                        <label for="pitch-range">Pitch: <span class="range-value" id="pitch-value">1.0</span></label>
+                        <input type="range" 
+                               id="pitch-range" 
+                               min="0.5" 
+                               max="2.0" 
+                               step="0.1" 
+                               value="1.0" 
+                               aria-label="Adjust voice pitch"
+                               oninput="updatePitchValue()" 
+                               onchange="updateVoiceSettings()">
+                    </div>
+                    
+                    <button class="test-voice-btn" onclick="testVoice()" aria-label="Test current voice settings">
+                        Test Voice
+                    </button>
+                </div>
+
+                <div class="ocr-settings">
+                    <h3>OCR Settings</h3>
+                    <div class="setting-group">
+                        <label for="ocr-language">Language:</label>
+                        <select id="ocr-language" onchange="updateOCRSettings()" aria-label="Select OCR language">
+                            <option value="eng">English</option>
+                            <option value="hin">Hindi</option>
+                            <option value="eng+hin">English + Hindi</option>
+                            <option value="tam">Tamil</option>
+                            <option value="tel">Telugu</option>
+                            <option value="kan">Kannada</option>
+                            <option value="mar">Marathi</option>
+                            <option value="ben">Bengali</option>
+                        </select>
+                    </div>
+                    <div class="ocr-progress" id="ocr-progress" style="display: none;" role="progressbar" aria-label="OCR processing progress">
+                        <div class="ocr-progress-bar" id="ocr-progress-bar">0%</div>
+                    </div>
+                </div>
+
+                <div class="controls">
+                    <button class="btn" id="voice-btn" onclick="toggleVoiceCommands()" aria-label="Toggle voice commands">
+                        Start Voice Commands
+                    </button>
+                    <button class="btn" id="prev-btn" onclick="previousPage()" disabled aria-label="Go to previous page">
+                        Previous Page
+                    </button>
+                    <button class="btn" id="next-btn" onclick="nextPage()" disabled aria-label="Go to next page">
+                        Next Page
+                    </button>
+                    <button class="btn danger" id="stop-btn" onclick="stopReading()" disabled aria-label="Stop reading">
+                        Stop Reading
+                    </button>
+                    <button class="btn success" id="start-btn" onclick="startReading()" disabled aria-label="Start reading">
+                        Start Reading
+                    </button>
+                    <button class="btn warning" id="repeat-btn" onclick="repeatPage()" disabled aria-label="Repeat current page">
+                        Repeat Page
+                    </button>
+                    <button class="btn" id="bookmark-btn" onclick="addBookmark()" disabled aria-label="Bookmark current page">
+                        Bookmark Page
+                    </button>
+                    <button class="btn" id="reprocess-btn" onclick="reprocessCurrentPage()" disabled aria-label="Reprocess page with OCR">
+                        Reprocess OCR
+                    </button>
+                </div>
+
+                <div class="voice-commands-help">
+                    <h4>Voice Commands Available:</h4>
+                    <ul role="list">
+                        <li>• "Next" or "Forward" - Go to next page and start reading</li>
+                        <li>• "Back" or "Previous" - Go to previous page and start reading</li>
+                        <li>• "Stop" or "Pause" - Stop reading</li>
+                        <li>• "Start" or "Play" - Start reading current page</li>
+                        <li>• "Repeat" or "Again" - Repeat current page and start reading</li>
+                        <li>• "Bookmark" - Bookmark current page</li>
+                        <li>• "Faster" - Increase reading speed</li>
+                        <li>• "Slower" - Decrease reading speed</li>
+                        <li>• "Reprocess" - Rerun OCR and start reading</li>
+                    </ul>
+                </div>
+
+                <div class="keyboard-shortcuts">
+                    <h3>Keyboard Shortcuts</h3>
+                    <div class="shortcut">
+                        <span>Next Page</span>
+                        <span class="key">N</span>
+                    </div>
+                    <div class="shortcut">
+                        <span>Previous Page</span>
+                        <span class="key">B</span>
+                    </div>
+                    <div class="shortcut">
+                        <span>Play/Pause</span>
+                        <span class="key">Space</span>
+                    </div>
+                    <div class="shortcut">
+                        <span>Repeat Page</span>
+                        <span class="key">R</span>
+                    </div>
+                    <div class="shortcut">
+                        <span>Bookmark</span>
+                        <span class="key">M</span>
+                    </div>
+                    <div class="shortcut">
+                        <span>Voice Toggle</span>
+                        <span class="key">V</span>
+                    </div>
+                    <div class="shortcut">
+                        <span>Reprocess OCR</span>
+                        <span class="key">O</span>
+                    </div>
+                </div>
+
+                <div class="bookmarks">
+                    <h3>Bookmarks</h3>
+                    <div id="bookmarks-list" role="list">
+                        <p style="color: #6b7280; font-style: italic;">No bookmarks yet</p>
+                    </div>
+                </div>
+            </aside>
+
+            <article class="content-area">
+                <div class="loading" id="loading-indicator" style="display: none;">
+                    <div class="loading-spinner" aria-hidden="true"></div>
+                    <p class="loading-text" id="loading-text">Loading PDF content...</p>
+                </div>
+
+                <div id="pdf-content" style="display: none;">
+                    <div class="page-info">
+                        <h1 class="page-title" id="page-title">Page Title</h1>
+                        <p class="page-number" id="page-number">Page 1 of 1</p>
+                    </div>
+                    
+                    <div class="extracted-preview" id="extracted-preview" style="display: none;">
+                        <h4>Extracted Text Preview:</h4>
+                        <div id="extracted-text-preview"></div>
+                    </div>
+                    
+                    <canvas class="page-canvas" id="page-canvas" style="display: none;" aria-label="PDF page visualization"></canvas>
+                    
+                    <div class="page-content" 
+                         id="page-content" 
+                         tabindex="0" 
+                         role="main" 
+                         aria-label="PDF page content"
+                         aria-live="polite">
+                        Content will appear here
+                    </div>
+
+                    <div class="debug-info" id="debug-info" style="display: none;">
+                        <strong>Debug Info:</strong><br>
+                        <span id="debug-text"></span>
+                    </div>
+                </div>
+
+                <div id="welcome-content">
+                    <div class="welcome-message">
+                        <h2>Welcome to the Accessible PDF Reader!</h2>
+                        <p>This reader can read any PDF file out loud, including scanned documents and images with text.</p>
+                        <p><strong>How to use:</strong></p>
+                        <p>1. Upload a PDF file using the button above</p>
+                        <p>2. The reader will automatically extract and read the text</p>
+                        <p>3. Use voice commands or keyboard shortcuts to navigate</p>
+                        <p>4. Bookmark important pages for easy access</p>
+                        <p><strong>NEW:</strong> Navigation commands (next/back) now automatically start reading!</p>
+                    </div>
+                </div>
+            </article>
+        </main>
+
+        <!-- Screen reader announcements -->
+        <div id="announcements" aria-live="assertive" aria-atomic="true" class="sr-only"></div>
+    </div>
+
+    <!-- PDF.js from CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <!-- Tesseract.js for OCR -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/4.1.4/tesseract.min.js"></script>
+    
+    <script>
+        // Global variables
+        let pdfDoc = null;
+        let currentPage = 1;
+        let totalPages = 0;
+        let pageTextCache = new Map();
+        let pageCanvasCache = new Map();
+        let bookmarks = [];
+        let isReading = false;
+        let currentUtterance = null;
+        let voiceRecognition = null;
+        let isListening = false;
+        let availableVoices = [];
+        let selectedVoice = null;
+        let speechRate = 0.8;
+        let speechPitch = 1.0;
+        let ocrLanguage = 'eng';
+        let currentSentenceIndex = 0;
+        let sentences = [];
+        let isDebugMode = false;
+
+        // Initialize PDF.js
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('PDF Reader initializing...');
+            initializeVoices();
+            initializeVoiceRecognition();
+            setupKeyboardShortcuts();
+            loadBookmarks();
+            announceToScreenReader('PDF Reader loaded and ready to use');
+            
+            // Enable debug mode for testing
+            setTimeout(() => {
+                isDebugMode = true;
+                document.getElementById('debug-info').style.display = 'block';
+            }, 2000);
+        });
+
+        // Voice initialization with better error handling
+        function initializeVoices() {
+            if (!('speechSynthesis' in window)) {
+                console.error('Speech synthesis not supported');
+                showError('Text-to-speech is not supported in this browser');
+                return;
+            }
+
+            const loadVoices = () => {
+                availableVoices = speechSynthesis.getVoices();
+                console.log('Available voices:', availableVoices.length);
+                updateVoiceSelect();
+                
+                if (availableVoices.length > 0 && !selectedVoice) {
+                    // Priority: English voices, then female voices, then any voice
+                    selectedVoice = availableVoices.find(voice => 
+                        voice.lang.toLowerCase().includes('en') && 
+                        (voice.name.toLowerCase().includes('female') || voice.name.toLowerCase().includes('woman'))
+                    ) || availableVoices.find(voice => 
+                        voice.lang.toLowerCase().includes('en')
+                    ) || availableVoices[0];
+                    
+                    console.log('Selected voice:', selectedVoice?.name);
+                    updateVoiceSelect();
+                }
+            };
+            
+            // Load voices immediately and on change
+            loadVoices();
+            if (speechSynthesis.onvoiceschanged !== undefined) {
+                speechSynthesis.onvoiceschanged = loadVoices;
+            }
+            
+            // Fallback: try loading voices after a delay
+            setTimeout(loadVoices, 1000);
+        }
+
+        function updateVoiceSelect() {
+            const select = document.getElementById('voice-select');
+            select.innerHTML = '';
+            
+            if (availableVoices.length === 0) {
+                select.innerHTML = '<option value="">Loading voices...</option>';
+                return;
+            }
+
+            availableVoices.forEach((voice, index) => {
+                const option = document.createElement('option');
+                option.value = index;
+                option.textContent = `${voice.name} (${voice.lang})`;
+                if (voice === selectedVoice) {
+                    option.selected = true;
+                }
+                select.appendChild(option);
+            });
+        }
+
+        // Voice Recognition with better error handling
+        function initializeVoiceRecognition() {
+            if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+                console.log('Speech recognition not supported');
+                document.getElementById('voice-btn').disabled = true;
+                document.getElementById('voice-btn').textContent = 'Voice Not Supported';
+                return;
+            }
+
+            try {
+                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                voiceRecognition = new SpeechRecognition();
+                
+                voiceRecognition.continuous = true;
+                voiceRecognition.interimResults = false;
+                voiceRecognition.lang = 'en-US';
+                voiceRecognition.maxAlternatives = 1;
+                
+                voiceRecognition.onstart = function() {
+                    console.log('Voice recognition started');
+                    updateVoiceStatus('listening', 'Listening for voice commands...');
+                };
+                
+                voiceRecognition.onresult = function(event) {
+                    const lastResult = event.results[event.results.length - 1];
+                    if (lastResult.isFinal) {
+                        const command = lastResult[0].transcript.toLowerCase().trim();
+                        console.log('Voice command:', command);
+                        processVoiceCommand(command);
+                    }
+                };
+                
+                voiceRecognition.onerror = function(event) {
+                    console.error('Voice recognition error:', event.error);
+                    if (event.error === 'not-allowed') {
+                        showError('Microphone access denied. Please allow microphone access and try again.');
+                    } else if (event.error === 'network') {
+                        showError('Network error. Please check your connection.');
+                    } else {
+                        updateVoiceStatus('idle', 'Voice recognition error. Click to restart.');
+                    }
+                };
+                
+                voiceRecognition.onend = function() {
+                    console.log('Voice recognition ended');
+                    if (isListening) {
+                        setTimeout(() => {
+                            try {
+                                voiceRecognition.start();
+                            } catch (e) {
+                                console.error('Failed to restart voice recognition:', e);
+                                isListening = false;
+                                updateVoiceStatus('idle', 'Click "Start Voice Commands" to begin');
+                            }
+                        }, 500);
+                    } else {
+                        updateVoiceStatus('idle', 'Click "Start Voice Commands" to begin');
+                    }
+                };
+                
+                console.log('Voice recognition initialized successfully');
+            } catch (error) {
+                console.error('Failed to initialize voice recognition:', error);
+                document.getElementById('voice-btn').disabled = true;
+                document.getElementById('voice-btn').textContent = 'Voice Not Supported';
+            }
+        }
+
+        // File handling
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (file && file.type === 'application/pdf') {
+                loadPDFFile(file);
+            } else {
+                showError('Please select a valid PDF file');
+            }
+        }
+
+        function handleDrop(event) {
+            event.preventDefault();
+            event.stopPropagation();
+            event.target.classList.remove('dragover');
+            
+            const files = event.dataTransfer.files;
+            if (files.length > 0 && files[0].type === 'application/pdf') {
+                loadPDFFile(files[0]);
+            } else {
+                showError('Please drop a valid PDF file');
+            }
+        }
+
+        function handleDragOver(event) {
+            event.preventDefault();
+            event.stopPropagation();
+            event.target.classList.add('dragover');
+        }
+
+        function handleDragLeave(event) {
+            event.preventDefault();
+            event.stopPropagation();
+            event.target.classList.remove('dragover');
+        }
+
+        // Enhanced PDF Loading and Processing
+        async function loadPDFFile(file) {
+            try {
+                console.log('Loading PDF file:', file.name);
+                showLoading('Loading PDF file...');
+                
+                const arrayBuffer = await file.arrayBuffer();
+                pdfDoc = await pdfjsLib.getDocument({
+                    data: arrayBuffer,
+                    cMapUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/cmaps/',
+                    cMapPacked: true
+                }).promise;
+                
+                totalPages = pdfDoc.numPages;
+                console.log('PDF loaded successfully. Pages:', totalPages);
+                
+                currentPage = 1;
+                pageTextCache.clear();
+                pageCanvasCache.clear();
+                
+                document.getElementById('welcome-content').style.display = 'none';
+                document.getElementById('main-content').style.display = 'grid';
+                
+                await loadCurrentPage();
+                enableControls();
+                
+                announceToScreenReader(`PDF loaded successfully. ${totalPages} pages total.`);
+                
+            } catch (error) {
+                console.error('Error loading PDF:', error);
+                showError('Failed to load PDF file. Please try again or try a different PDF.');
+            }
+        }
+
+        async function loadCurrentPage() {
+            try {
+                console.log(`Loading page ${currentPage}...`);
+                showLoading(`Loading page ${currentPage}...`);
+                
+                // Check if page is already cached
+                if (pageTextCache.has(currentPage)) {
+                    console.log('Page found in cache');
+                    displayCurrentPage();
+                    hideLoading();
+                    return;
+                }
+                
+                const page = await pdfDoc.getPage(currentPage);
+                console.log('Page object loaded');
+                
+                // Try to extract text first
+                let pageText = await extractTextFromPage(page);
+                console.log('Extracted text length:', pageText.length);
+                
+                if (isDebugMode) {
+                    document.getElementById('debug-text').innerHTML = 
+                        `Page: ${currentPage}<br>` +
+                        `Text length: ${pageText.length}<br>` +
+                        `Raw text: ${pageText.substring(0, 200)}...`;
+                }
+                
+                // If no meaningful text found, try OCR
+                if (pageText.trim().length < 10) {
+                    console.log('Little text found, trying OCR...');
+                    showLoading(`Extracting text from page ${currentPage} using OCR...`);
+                    const ocrText = await performOCR(page);
+                    pageText = ocrText || 'No readable text could be extracted from this page.';
+                    console.log('OCR text length:', pageText.length);
+                }
+                
+                pageTextCache.set(currentPage, pageText);
+                
+                // Render canvas in parallel
+                renderPageCanvas(page).catch(err => console.warn('Canvas rendering failed:', err));
+                
+                displayCurrentPage();
+                hideLoading();
+                
+            } catch (error) {
+                console.error('Error loading page:', error);
+                showError(`Failed to load page ${currentPage}: ${error.message}`);
+                hideLoading();
+            }
+        }
+
+        async function extractTextFromPage(page) {
+            try {
+                const textContent = await page.getTextContent();
+                let extractedText = '';
+                
+                // Better text extraction - maintain spacing and structure
+                textContent.items.forEach((item, index) => {
+                    if (item.str.trim()) {
+                        // Add spacing based on transform matrix
+                        if (index > 0) {
+                            const prevItem = textContent.items[index - 1];
+                            const currentY = item.transform[5];
+                            const prevY = prevItem.transform[5];
+                            
+                            // New line if Y position changed significantly
+                            if (Math.abs(currentY - prevY) > 5) {
+                                extractedText += '\n';
+                            } else {
+                                extractedText += ' ';
+                            }
+                        }
+                        extractedText += item.str;
+                    }
+                });
+                
+                return extractedText.trim();
+            } catch (error) {
+                console.error('Error extracting text:', error);
+                return '';
+            }
+        }
+
+        async function performOCR(page) {
+            try {
+                console.log('Starting OCR process...');
+                updateOCRProgress(0, 'Preparing image...');
+                
+                // Higher scale for better OCR accuracy
+                const viewport = page.getViewport({ scale: 2.5 });
+                const canvas = document.createElement('canvas');
+                const context = canvas.getContext('2d');
+                
+                canvas.height = viewport.height;
+                canvas.width = viewport.width;
+                
+                updateOCRProgress(20, 'Rendering page...');
+                
+                await page.render({
+                    canvasContext: context,
+                    viewport: viewport
+                }).promise;
+                
+                updateOCRProgress(40, 'Processing with OCR...');
+                
+                const result = await Tesseract.recognize(canvas, ocrLanguage, {
+                    logger: info => {
+                        if (info.status === 'recognizing text') {
+                            const progress = Math.round(40 + (info.progress * 50));
+                            updateOCRProgress(progress, `OCR processing: ${Math.round(info.progress * 100)}%`);
+                        }
+                    }
+                });
+                
+                updateOCRProgress(100, 'OCR completed!');
+                setTimeout(() => hideOCRProgress(), 2000);
+                
+                console.log('OCR completed. Text length:', result.data.text.length);
+                return result.data.text;
+                
+            } catch (error) {
+                console.error('OCR Error:', error);
+                hideOCRProgress();
+                showError('OCR processing failed. The page might not contain readable text.');
+                return 'OCR processing failed for this page.';
+            }
+        }
+
+        async function renderPageCanvas(page) {
+            try {
+                if (pageCanvasCache.has(currentPage)) {
+                    return;
+                }
+                
+                const viewport = page.getViewport({ scale: 1.5 });
+                const canvas = document.getElementById('page-canvas');
+                const context = canvas.getContext('2d');
+                
+                canvas.height = viewport.height;
+                canvas.width = viewport.width;
+                
+                await page.render({
+                    canvasContext: context,
+                    viewport: viewport
+                }).promise;
+                
+                pageCanvasCache.set(currentPage, true);
+                canvas.style.display = 'block';
+                console.log('Canvas rendered successfully');
+                
+            } catch (error) {
+                console.error('Error rendering page:', error);
+            }
+        }
+
+        function displayCurrentPage() {
+            const pageText = pageTextCache.get(currentPage) || 'No text found on this page.';
+            
+            document.getElementById('page-title').textContent = `Page ${currentPage}`;
+            document.getElementById('page-number').textContent = `Page ${currentPage} of ${totalPages}`;
+            
+            // Clean and format text for display
+            const cleanedText = cleanTextForDisplay(pageText);
+            document.getElementById('page-content').innerHTML = cleanedText;
+            
+            // Show extracted text preview
+            if (pageText.length > 50 && !pageText.includes('No text found')) {
+                document.getElementById('extracted-text-preview').textContent = 
+                    pageText.substring(0, 300) + (pageText.length > 300 ? '...' : '');
+                document.getElementById('extracted-preview').style.display = 'block';
+            } else {
+                document.getElementById('extracted-preview').style.display = 'none';
+            }
+            
+            document.getElementById('pdf-content').style.display = 'block';
+            
+            // Update navigation buttons
+            document.getElementById('prev-btn').disabled = currentPage <= 1;
+            document.getElementById('next-btn').disabled = currentPage >= totalPages;
+            
+            // Prepare sentences for reading with improved splitting
+            sentences = splitIntoSentences(pageText);
+            currentSentenceIndex = 0;
+            
+            console.log('Page displayed. Sentences prepared:', sentences.length);
+            
+            if (isDebugMode) {
+                document.getElementById('debug-text').innerHTML += `<br>Sentences: ${sentences.length}`;
+            }
+        }
+
+        function cleanTextForDisplay(text) {
+            return text
+                .replace(/\s+/g, ' ') // Replace multiple spaces with single space
+                .replace(/\n\s*\n/g, '</p><p>') // Double newlines become paragraphs
+                .replace(/\n/g, '<br>') // Single newlines become breaks
+                .trim();
+        }
+
+        function splitIntoSentences(text) {
+            if (!text || text.trim().length === 0) return [];
+            
+            // Improved sentence splitting
+            const sentences = text
+                .split(/(?<=[.!?])\s+/)
+                .filter(sentence => sentence.trim().length > 5)
+                .map(sentence => sentence.trim());
+            
+            // If no proper sentences found, split by chunks
+            if (sentences.length === 0) {
+                const words = text.split(/\s+/);
+                const chunks = [];
+                for (let i = 0; i < words.length; i += 15) {
+                    chunks.push(words.slice(i, i + 15).join(' '));
+                }
+                return chunks;
+            }
+            
+            return sentences;
+        }
+
+        // Navigation functions with auto-start capability
+        async function nextPage() {
+            if (currentPage < totalPages) {
+                stopReading();
+                currentPage++;
+                await loadCurrentPage();
+                announceToScreenReader(`Page ${currentPage} of ${totalPages}`);
+            }
+        }
+
+        async function previousPage() {
+            if (currentPage > 1) {
+                stopReading();
+                currentPage--;
+                await loadCurrentPage();
+                announceToScreenReader(`Page ${currentPage} of ${totalPages}`);
+            }
+        }
+
+        async function repeatPage() {
+            stopReading();
+            await loadCurrentPage();
+            // Auto-start will be handled by the calling function
+        }
+
+        async function reprocessCurrentPage() {
+            if (!pdfDoc) return;
+            
+            try {
+                stopReading();
+                showLoading('Reprocessing page with OCR...');
+                
+                const page = await pdfDoc.getPage(currentPage);
+                const ocrText = await performOCR(page);
+                pageTextCache.set(currentPage, ocrText);
+                
+                displayCurrentPage();
+                hideLoading();
+                announceToScreenReader('Page reprocessed successfully');
+                
+            } catch (error) {
+                console.error('Error reprocessing page:', error);
+                showError('Failed to reprocess page');
+                hideLoading();
+            }
+        }
+
+        // Enhanced Text-to-Speech functions
+        function startReading() {
+            if (!pageTextCache.has(currentPage)) {
+                console.log('No text to read');
+                return;
+            }
+            
+            if (!selectedVoice) {
+                console.log('No voice selected, trying to initialize...');
+                initializeVoices();
+                setTimeout(() => startReading(), 1000);
+                return;
+            }
+            
+            stopReading();
+            isReading = true;
+            currentSentenceIndex = 0;
+            
+            console.log('Starting to read. Sentences:', sentences.length);
+            updateVoiceStatus('speaking', 'Reading page content...');
+            document.getElementById('start-btn').disabled = true;
+            document.getElementById('stop-btn').disabled = false;
+            
+            readNextSentence();
+        }
+
+        function readNextSentence() {
+            if (!isReading || currentSentenceIndex >= sentences.length) {
+                console.log('Finished reading page');
+                finishReading();
+                return;
+            }
+            
+            const sentence = sentences[currentSentenceIndex];
+            if (!sentence || sentence.trim().length === 0) {
+                currentSentenceIndex++;
+                readNextSentence();
+                return;
+            }
+            
+            console.log(`Reading sentence ${currentSentenceIndex + 1}/${sentences.length}:`, sentence.substring(0, 50));
+            highlightCurrentSentence();
+            
+            // Cancel any existing speech
+            speechSynthesis.cancel();
+            
+            currentUtterance = new SpeechSynthesisUtterance(sentence);
+            currentUtterance.voice = selectedVoice;
+            currentUtterance.rate = speechRate;
+            currentUtterance.pitch = speechPitch;
+            currentUtterance.volume = 1.0;
+            
+            currentUtterance.onstart = function() {
+                console.log('Speech started');
+            };
+            
+            currentUtterance.onend = function() {
+                console.log('Speech ended');
+                if (isReading) {
+                    currentSentenceIndex++;
+                    setTimeout(() => readNextSentence(), 200);
+                }
+            };
+            
+            currentUtterance.onerror = function(event) {
+                console.error('Speech error:', event.error);
+                if (isReading) {
+                    currentSentenceIndex++;
+                    setTimeout(() => readNextSentence(), 200);
+                }
+            };
+            
+            try {
+                speechSynthesis.speak(currentUtterance);
+            } catch (error) {
+                console.error('Failed to speak:', error);
+                finishReading();
+            }
+        }
+
+        function stopReading() {
+            console.log('Stopping reading');
+            isReading = false;
+            speechSynthesis.cancel();
+            currentUtterance = null;
+            
+            clearHighlights();
+            updateVoiceStatus('idle', isListening ? 'Listening for commands...' : 'Click "Start Voice Commands" to begin');
+            document.getElementById('start-btn').disabled = false;
+            document.getElementById('stop-btn').disabled = true;
+        }
+
+        function finishReading() {
+            isReading = false;
+            clearHighlights();
+            announceToScreenReader('Finished reading page');
+            
+            updateVoiceStatus('idle', 'Finished reading page');
+            document.getElementById('start-btn').disabled = false;
+            document.getElementById('stop-btn').disabled = true;
+            
+            // Auto-advance to next page if available
+            if (currentPage < totalPages) {
+                setTimeout(() => {
+                    console.log('Auto-advancing to next page');
+                    nextPage().then(() => {
+                        setTimeout(() => startReading(), 1500);
+                    });
+                }, 2000);
+            } else {
+                updateVoiceStatus('idle', 'Finished reading document');
+                announceToScreenReader('Finished reading entire document');
+            }
+        }
+
+        function highlightCurrentSentence() {
+            clearHighlights();
+            const contentDiv = document.getElementById('page-content');
+            
+            if (currentSentenceIndex < sentences.length) {
+                const sentence = sentences[currentSentenceIndex];
+                const currentHTML = contentDiv.innerHTML;
+                
+                // Find and highlight the sentence
+                const sentenceIndex = currentHTML.toLowerCase().indexOf(sentence.toLowerCase());
+                if (sentenceIndex !== -1) {
+                    const beforeSentence = currentHTML.substring(0, sentenceIndex);
+                    const afterSentence = currentHTML.substring(sentenceIndex + sentence.length);
+                    const highlightedSentence = `<span class="highlight-current">${sentence}</span>`;
+                    
+                    contentDiv.innerHTML = beforeSentence + highlightedSentence + afterSentence;
+                }
+            }
+        }
+
+        function clearHighlights() {
+            const contentDiv = document.getElementById('page-content');
+            contentDiv.innerHTML = contentDiv.innerHTML.replace(
+                /<span class="highlight-current">(.*?)<\/span>/gi,
+                '$1'
+            );
+        }
+
+        // Voice commands processing with better recognition and auto-start
+        function processVoiceCommand(command) {
+            console.log('Processing voice command:', command);
+            
+            updateVoiceStatus('processing', `Processing: "${command}"`);
+            
+            // Normalize command
+            const normalizedCommand = command.toLowerCase().trim();
+            
+            setTimeout(() => {
+                let commandExecuted = false;
+                let shouldAutoStart = false;
+                
+                if (normalizedCommand.includes('next') || normalizedCommand.includes('forward') || normalizedCommand.includes('page')) {
+                    nextPage();
+                    shouldAutoStart = true;
+                    commandExecuted = true;
+                } else if (normalizedCommand.includes('back') || normalizedCommand.includes('previous') || normalizedCommand.includes('prev')) {
+                    previousPage();
+                    shouldAutoStart = true;
+                    commandExecuted = true;
+                } else if (normalizedCommand.includes('stop') || normalizedCommand.includes('pause')) {
+                    stopReading();
+                    commandExecuted = true;
+                } else if (normalizedCommand.includes('start') || normalizedCommand.includes('play') || normalizedCommand.includes('read')) {
+                    startReading();
+                    commandExecuted = true;
+                } else if (normalizedCommand.includes('repeat') || normalizedCommand.includes('again')) {
+                    repeatPage();
+                    shouldAutoStart = true;
+                    commandExecuted = true;
+                } else if (normalizedCommand.includes('bookmark') || normalizedCommand.includes('mark')) {
+                    addBookmark();
+                    commandExecuted = true;
+                } else if (normalizedCommand.includes('faster') || normalizedCommand.includes('speed up')) {
+                    adjustSpeed(0.1);
+                    commandExecuted = true;
+                } else if (normalizedCommand.includes('slower') || normalizedCommand.includes('slow down')) {
+                    adjustSpeed(-0.1);
+                    commandExecuted = true;
+                } else if (normalizedCommand.includes('reprocess') || normalizedCommand.includes('ocr')) {
+                    reprocessCurrentPage();
+                    shouldAutoStart = true;
+                    commandExecuted = true;
+                }
+                
+                // Auto-start reading for navigation commands
+                if (shouldAutoStart && commandExecuted) {
+                    setTimeout(() => {
+                        console.log('Auto-starting reading after navigation command');
+                        startReading();
+                    }, 1500); // Small delay to allow page loading
+                }
+                
+                if (!commandExecuted) {
+                    console.log('Command not recognized:', normalizedCommand);
+                    announceToScreenReader('Command not recognized. Try saying next, previous, start, stop, or repeat.');
+                }
+                
+                updateVoiceStatus('listening', 'Listening for voice commands...');
+            }, 1000);
+        }
+
+        function adjustSpeed(delta) {
+            speechRate = Math.max(0.3, Math.min(2.0, speechRate + delta));
+            document.getElementById('speed-range').value = speechRate;
+            updateSpeedValue();
+            updateVoiceSettings();
+            announceToScreenReader(`Speed adjusted to ${speechRate.toFixed(1)}x`);
+        }
+
+        // Voice control functions
+        function toggleVoiceCommands() {
+            if (!voiceRecognition) {
+                announceToScreenReader('Voice recognition not supported in this browser');
+                return;
+            }
+            
+            if (isListening) {
+                stopVoiceCommands();
+            } else {
+                startVoiceCommands();
+            }
+        }
+
+        function startVoiceCommands() {
+            try {
+                console.log('Starting voice commands');
+                isListening = true;
+                voiceRecognition.start();
+                document.getElementById('voice-btn').textContent = 'Stop Voice Commands';
+                document.getElementById('voice-btn').classList.add('active');
+                announceToScreenReader('Voice commands activated. Say commands like next, previous, start, or stop.');
+            } catch (error) {
+                console.error('Error starting voice recognition:', error);
+                isListening = false;
+                showError('Could not start voice recognition. Please try again.');
+            }
+        }
+
+        function stopVoiceCommands() {
+            console.log('Stopping voice commands');
+            isListening = false;
+            if (voiceRecognition) {
+                voiceRecognition.stop();
+            }
+            document.getElementById('voice-btn').textContent = 'Start Voice Commands';
+            document.getElementById('voice-btn').classList.remove('active');
+            updateVoiceStatus('idle', 'Click "Start Voice Commands" to begin');
+            announceToScreenReader('Voice commands deactivated');
+        }
+
+        // Settings functions
+        function updateVoiceSettings() {
+            const voiceIndex = document.getElementById('voice-select').value;
+            if (voiceIndex !== '' && availableVoices[voiceIndex]) {
+                selectedVoice = availableVoices[voiceIndex];
+                console.log('Voice updated to:', selectedVoice.name);
+            }
+            speechRate = parseFloat(document.getElementById('speed-range').value);
+            speechPitch = parseFloat(document.getElementById('pitch-range').value);
+        }
+
+        function updateSpeedValue() {
+            const value = document.getElementById('speed-range').value;
+            document.getElementById('speed-value').textContent = parseFloat(value).toFixed(1) + 'x';
+            speechRate = parseFloat(value);
+        }
+
+        function updatePitchValue() {
+            const value = document.getElementById('pitch-range').value;
+            document.getElementById('pitch-value').textContent = parseFloat(value).toFixed(1);
+            speechPitch = parseFloat(value);
+        }
+
+        function updateOCRSettings() {
+            ocrLanguage = document.getElementById('ocr-language').value;
+            console.log('OCR language updated to:', ocrLanguage);
+        }
+
+        function testVoice() {
+            if (!selectedVoice) {
+                showError('No voice selected. Please select a voice first.');
+                return;
+            }
+            
+            console.log('Testing voice:', selectedVoice.name);
+            const utterance = new SpeechSynthesisUtterance('This is a test of the current voice settings. The voice sounds clear and ready for reading.');
+            utterance.voice = selectedVoice;
+            utterance.rate = speechRate;
+            utterance.pitch = speechPitch;
+            speechSynthesis.speak(utterance);
+        }
+
+        // Bookmark functions
+        function addBookmark() {
+            if (!pageTextCache.has(currentPage)) return;
+            
+            const pageText = pageTextCache.get(currentPage);
+            const bookmark = {
+                page: currentPage,
+                text: pageText.substring(0, 100) + '...',
+                timestamp: new Date().toLocaleString()
+            };
+            
+            bookmarks.push(bookmark);
+            saveBookmarks();
+            displayBookmarks();
+            announceToScreenReader(`Bookmark added for page ${currentPage}`);
+        }
+
+        function saveBookmarks() {
+            // In memory storage only - could be extended to use other storage methods
+            console.log('Bookmarks saved:', bookmarks.length);
+        }
+
+        function loadBookmarks() {
+            // Load bookmarks from memory/storage
+            displayBookmarks();
+        }
+
+        function displayBookmarks() {
+            const container = document.getElementById('bookmarks-list');
+            
+            if (bookmarks.length === 0) {
+                container.innerHTML = '<p style="color: #6b7280; font-style: italic;">No bookmarks yet</p>';
+                return;
+            }
+            
+            container.innerHTML = '';
+            bookmarks.forEach((bookmark, index) => {
+                const bookmarkDiv = document.createElement('div');
+                bookmarkDiv.className = 'bookmark-item';
+                bookmarkDiv.tabIndex = 0;
+                bookmarkDiv.setAttribute('role', 'button');
+                bookmarkDiv.setAttribute('aria-label', `Go to bookmark on page ${bookmark.page}`);
+                
+                bookmarkDiv.innerHTML = `
+                    <div class="bookmark-page">Page ${bookmark.page}</div>
+                    <div class="bookmark-text">${bookmark.text}</div>
+                `;
+                
+                bookmarkDiv.onclick = () => goToBookmark(bookmark.page);
+                bookmarkDiv.onkeydown = (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        goToBookmark(bookmark.page);
+                    }
+                };
+                
+                container.appendChild(bookmarkDiv);
+            });
+        }
+
+        async function goToBookmark(page) {
+            if (page !== currentPage) {
+                stopReading();
+                currentPage = page;
+                await loadCurrentPage();
+                announceToScreenReader(`Jumped to bookmarked page ${page}`);
+            }
+        }
+
+        // UI helper functions
+        function showLoading(text = 'Loading...') {
+            document.getElementById('loading-text').textContent = text;
+            document.getElementById('loading-indicator').style.display = 'block';
+            document.getElementById('pdf-content').style.display = 'none';
+        }
+
+        function hideLoading() {
+            document.getElementById('loading-indicator').style.display = 'none';
+            document.getElementById('pdf-content').style.display = 'block';
+        }
+
+        function updateOCRProgress(percent, text) {
+            const progressBar = document.getElementById('ocr-progress-bar');
+            const progressContainer = document.getElementById('ocr-progress');
+            
+            progressContainer.style.display = 'block';
+            progressBar.style.width = percent + '%';
+            progressBar.textContent = text;
+            progressContainer.setAttribute('aria-valuenow', percent);
+        }
+
+        function hideOCRProgress() {
+            document.getElementById('ocr-progress').style.display = 'none';
+        }
+
+        function updateVoiceStatus(status, text) {
+            const indicator = document.getElementById('voice-status');
+            indicator.className = `voice-indicator ${status}`;
+            indicator.textContent = text;
+            console.log('Voice status:', status, text);
+        }
+
+        function enableControls() {
+            document.getElementById('prev-btn').disabled = false;
+            document.getElementById('next-btn').disabled = false;
+            document.getElementById('start-btn').disabled = false;
+            document.getElementById('repeat-btn').disabled = false;
+            document.getElementById('bookmark-btn').disabled = false;
+            document.getElementById('reprocess-btn').disabled = false;
+        }
+
+        function showError(message) {
+            console.error('Error:', message);
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error-message';
+            errorDiv.textContent = message;
+            
+            const contentArea = document.querySelector('.content-area');
+            contentArea.insertBefore(errorDiv, contentArea.firstChild);
+            
+            setTimeout(() => {
+                if (errorDiv.parentNode) {
+                    errorDiv.parentNode.removeChild(errorDiv);
+                }
+            }, 8000);
+            
+            announceToScreenReader(message);
+        }
+
+        function showSuccess(message) {
+            console.log('Success:', message);
+            const successDiv = document.createElement('div');
+            successDiv.className = 'success-message';
+            successDiv.textContent = message;
+            
+            const contentArea = document.querySelector('.content-area');
+            contentArea.insertBefore(successDiv, contentArea.firstChild);
+            
+            setTimeout(() => {
+                if (successDiv.parentNode) {
+                    successDiv.parentNode.removeChild(successDiv);
+                }
+            }, 5000);
+            
+            announceToScreenReader(message);
+        }
+
+        function announceToScreenReader(message) {
+            const announcements = document.getElementById('announcements');
+            announcements.textContent = message;
+            
+            // Clear after a short delay to ensure it's read
+            setTimeout(() => {
+                announcements.textContent = '';
+            }, 1500);
+        }
+
+        // Enhanced keyboard shortcuts
+        function setupKeyboardShortcuts() {
+            document.addEventListener('keydown', function(event) {
+                // Ignore if user is typing in an input field
+                if (event.target.tagName === 'INPUT' || event.target.tagName === 'SELECT' || event.target.tagName === 'TEXTAREA') {
+                    return;
+                }
+                
+                // Ignore if modifier keys are pressed (except for specific combinations)
+                if (event.ctrlKey || event.altKey || event.metaKey) {
+                    return;
+                }
+                
+                switch (event.key.toLowerCase()) {
+                    case 'n':
+                        event.preventDefault();
+                        if (currentPage < totalPages) {
+                            nextPage().then(() => {
+                                setTimeout(() => startReading(), 1500);
+                            });
+                        }
+                        break;
+                    case 'b':
+                        event.preventDefault();
+                        if (currentPage > 1) {
+                            previousPage().then(() => {
+                                setTimeout(() => startReading(), 1500);
+                            });
+                        }
+                        break;
+                    case ' ':
+                        event.preventDefault();
+                        if (isReading) {
+                            stopReading();
+                        } else {
+                            startReading();
+                        }
+                        break;
+                    case 'r':
+                        event.preventDefault();
+                        repeatPage().then(() => {
+                            setTimeout(() => startReading(), 1500);
+                        });
+                        break;
+                    case 'm':
+                        event.preventDefault();
+                        addBookmark();
+                        break;
+                    case 'v':
+                        event.preventDefault();
+                        toggleVoiceCommands();
+                        break;
+                    case 'o':
+                        event.preventDefault();
+                        reprocessCurrentPage().then(() => {
+                            setTimeout(() => startReading(), 1500);
+                        });
+                        break;
+                    case 't':
+                        event.preventDefault();
+                        testVoice();
+                        break;
+                    case 'escape':
+                        event.preventDefault();
+                        stopReading();
+                        if (isListening) {
+                            stopVoiceCommands();
+                        }
+                        break;
+                }
+            });
+        }
+
+        // Error handling and recovery
+        window.addEventListener('error', function(event) {
+            console.error('Global error:', event.error);
+            showError('An unexpected error occurred. Please refresh the page if problems persist.');
+        });
+
+        window.addEventListener('unhandledrejection', function(event) {
+            console.error('Unhandled promise rejection:', event.reason);
+            event.preventDefault();
+        });
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', function() {
+            console.log('Page unloading, cleaning up...');
+            if (isListening && voiceRecognition) {
+                voiceRecognition.stop();
+            }
+            if (currentUtterance) {
+                speechSynthesis.cancel();
+            }
+        });
+
+        // Browser compatibility checks
+        function checkBrowserCompatibility() {
+            const issues = [];
+            
+            if (!('speechSynthesis' in window)) {
+                issues.push('Text-to-speech not supported');
+            }
+            
+            if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+                issues.push('Voice recognition not supported');
+            }
+            
+            if (!window.Worker) {
+                issues.push('Web Workers not supported (required for PDF.js)');
+            }
+            
+            if (issues.length > 0) {
+                console.warn('Browser compatibility issues:', issues);
+                showError('Some features may not work in this browser: ' + issues.join(', '));
+            }
+        }
+
+        // Initialize compatibility check
+        setTimeout(checkBrowserCompatibility, 3000);
+
+        // Performance monitoring
+        let performanceMetrics = {
+            pageLoadTime: 0,
+            ocrTime: 0,
+            speechStartTime: 0
+        };
+
+        function measurePerformance(action, startTime) {
+            const endTime = performance.now();
+            const duration = endTime - startTime;
+            performanceMetrics[action] = duration;
+            console.log(`${action} took ${duration.toFixed(2)}ms`);
+        }
+
+        // Auto-save functionality
+        function autoSave() {
+            const appState = {
+                currentPage: currentPage,
+                bookmarks: bookmarks,
+                speechRate: speechRate,
+                speechPitch: speechPitch,
+                ocrLanguage: ocrLanguage
+            };
+            
+            // In a real application, you would save to localStorage here
+            console.log('Auto-save state:', appState);
+        }
+
+        // Auto-save every 30 seconds
+        setInterval(autoSave, 30000);
+
+        // Accessibility improvements
+        function announcePageChange() {
+            const announcement = `Page ${currentPage} of ${totalPages}. ${sentences.length} sentences to read.`;
+            announceToScreenReader(announcement);
+        }
+
+        // Focus management
+        function manageFocus() {
+            // Ensure proper focus management for screen readers
+            const contentArea = document.getElementById('page-content');
+            if (contentArea) {
+                contentArea.focus();
+            }
+        }
+
+        // Advanced text processing
+        function preprocessText(text) {
+            return text
+                .replace(/\s+/g, ' ')  // Normalize whitespace
+                .replace(/([.!?])\s*([A-Z])/g, '$1 $2')  // Ensure space after sentences
+                .replace(/([a-z])([A-Z])/g, '$1 $2')  // Add space between camelCase
+                .trim();
+        }
+
+        // Enhanced sentence detection
+        function detectSentenceBoundaries(text) {
+            const sentences = [];
+            const regex = /[.!?]+\s*/g;
+            let lastIndex = 0;
+            let match;
+
+            while ((match = regex.exec(text)) !== null) {
+                const sentence = text.substring(lastIndex, match.index + match[0].length).trim();
+                if (sentence.length > 5) {
+                    sentences.push(sentence);
+                }
+                lastIndex = match.index + match[0].length;
+            }
+
+            // Add remaining text as final sentence
+            const remaining = text.substring(lastIndex).trim();
+            if (remaining.length > 5) {
+                sentences.push(remaining);
+            }
+
+            return sentences;
+        }
+
+        // Reading statistics
+        let readingStats = {
+            pagesRead: 0,
+            totalReadingTime: 0,
+            wordsPerMinute: 0
+        };
+
+        function updateReadingStats() {
+            // Calculate and update reading statistics
+            const currentTime = Date.now();
+            if (performanceMetrics.speechStartTime > 0) {
+                const readingTime = currentTime - performanceMetrics.speechStartTime;
+                readingStats.totalReadingTime += readingTime;
+            }
+        }
+
+        // Enhanced voice command processing with confidence scoring
+        function processVoiceCommandWithConfidence(command, confidence) {
+            if (confidence < 0.7) {
+                console.log('Low confidence voice command, ignoring:', command);
+                return;
+            }
+            
+            processVoiceCommand(command);
+        }
+
+        // Debug mode toggle
+        function toggleDebugMode() {
+            isDebugMode = !isDebugMode;
+            const debugDiv = document.getElementById('debug-info');
+            debugDiv.style.display = isDebugMode ? 'block' : 'none';
+            console.log('Debug mode:', isDebugMode);
+        }
+
+        // Export debug information
+        function exportDebugInfo() {
+            const debugData = {
+                performanceMetrics,
+                readingStats,
+                availableVoices: availableVoices.map(v => ({ name: v.name, lang: v.lang })),
+                currentSettings: {
+                    speechRate,
+                    speechPitch,
+                    ocrLanguage,
+                    selectedVoice: selectedVoice?.name
+                },
+                browserInfo: {
+                    userAgent: navigator.userAgent,
+                    speechSynthesis: 'speechSynthesis' in window,
+                    speechRecognition: 'webkitSpeechRecognition' in window || 'SpeechRecognition' in window
+                }
+            };
+            
+            console.log('Debug export:', debugData);
+            return debugData;
+        }
+
+        // Add debug controls (hidden by default)
+        setTimeout(() => {
+            const debugControls = document.createElement('div');
+            debugControls.innerHTML = `
+                <button onclick="toggleDebugMode()" style="position:fixed;bottom:10px;right:10px;z-index:9999;padding:5px;">Debug</button>
+            `;
+            document.body.appendChild(debugControls);
+        }, 5000);
+    </script>
+</body>
+</html>
